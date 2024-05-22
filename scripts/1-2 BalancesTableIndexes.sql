@@ -1,0 +1,1 @@
+CREATE INDEX balances_user_id_idx ON public.balances (user_id, pair);
