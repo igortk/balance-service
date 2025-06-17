@@ -8,6 +8,7 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/jmoiron/sqlx"
 	"reflect"
+	"time"
 )
 
 type PgClient struct {
@@ -23,6 +24,47 @@ func NewClient(cfg *config.PostreSqlConfig) *PgClient {
 	return &PgClient{
 		db: db,
 	}
+}
+
+func (cl *PgClient) EmitCurrency(userId, currencyName string, amount float64) error {
+	tx, err := cl.db.Beginx()
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+
+	result, err := tx.Exec(config.EmitBalanceByUserIdSqlQuery, currencyName, amount, 0, time.Now().Unix(), userId)
+	if err != nil {
+		tx.Rollback()
+		return fmt.Errorf("failed to execute balance update: %w", err)
+	}
+
+	rows, err := result.RowsAffected()
+	if err != nil {
+		tx.Rollback()
+		return fmt.Errorf("cannot get rows affected: %w", err)
+	}
+
+	if rows != 1 {
+		tx.Rollback()
+		return fmt.Errorf("expected 1 row to be affected, but got %d", rows)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	return nil
+}
+
+func (cl *PgClient) GetUserBalances(userId, currencyName string) (*proto.Balance, error) {
+	balance := &proto.Balance{}
+
+	err := cl.db.Select(balance, config.GetBalanceByUserIdCurrencySqlQuery, userId, currencyName)
+	if err != nil {
+		return nil, fmt.Errorf("failed get user balance: %w", err)
+	}
+
+	return balance, nil
 }
 
 func (cl *PgClient) Exec(query string, args ...interface{}) interface{} {

@@ -16,14 +16,6 @@ func main() {
 
 	initServer(cfg)
 
-	/*
-		dbClient := initPgClient(&cfg.PostreSqlConfig)
-
-		services.InitConsumers(
-			&cfg.RabbitConfig,
-			&dbClient,
-			[]rmq.Handler{&rmq.UpdateOrderEventHandler{}},
-		)*/
 }
 func initServer(cfg *config.Config) {
 	server := services.NewServer(&cfg.PostreSqlConfig, &cfg.RabbitConfig)

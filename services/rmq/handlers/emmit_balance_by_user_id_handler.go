@@ -30,7 +30,7 @@ func (h EmmitBalanceByUserIdHandler) HandleMessage(body []byte) {
 	err := gitProto.Unmarshal(body, req)
 	util.IsError(err, "Failed to unmarshal message")
 
-	h.pgCl.Exec(config.EmmitBalanceByUserIdSqlQuery,
+	h.pgCl.Exec(config.EmitBalanceByUserIdSqlQuery,
 		req.Currency,
 		fmt.Sprintf("+%g", req.Amount),
 		0,

@@ -75,11 +75,9 @@ func (c *Consumer) ConsumeMessages() {
 	if err != nil {
 		log.Fatalf("Failed to register a consumers: %v", err)
 	}
-	go func() {
-		for d := range msgs {
-			c.Handler.HandleMessage(d.Body)
-		}
-	}()
+	for d := range msgs {
+		c.Handler.HandleMessage(d.Body)
+	}
 }
 
 func (c *Consumer) Close() {

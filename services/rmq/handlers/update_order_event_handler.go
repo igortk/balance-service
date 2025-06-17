@@ -14,8 +14,8 @@ type UpdateOrderEventHandler struct {
 	pgCl *pg.PgClient
 }
 
-func NewUpdateOrderEventHandler(pgCl *pg.PgClient) UpdateOrderEventHandler {
-	return UpdateOrderEventHandler{
+func NewUpdateOrderEventHandler(pgCl *pg.PgClient) *UpdateOrderEventHandler {
+	return &UpdateOrderEventHandler{
 		pgCl: pgCl,
 	}
 }
