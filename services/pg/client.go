@@ -56,7 +56,7 @@ func (cl *PgClient) EmitCurrency(userId, currencyName string, amount float64) er
 	return nil
 }
 
-func (cl *PgClient) GetUserBalances(userId, currencyName string) (*proto.Balance, error) {
+func (cl *PgClient) GetUserBalance(userId, currencyName string) (*proto.Balance, error) {
 	balance := &proto.Balance{}
 
 	err := cl.db.Select(balance, config.GetBalanceByUserIdCurrencySqlQuery, userId, currencyName)
@@ -65,6 +65,17 @@ func (cl *PgClient) GetUserBalances(userId, currencyName string) (*proto.Balance
 	}
 
 	return balance, nil
+}
+
+func (cl *PgClient) GetUserBalances(userId string) ([]*proto.Balance, error) {
+	var balances []*proto.Balance
+
+	err := cl.db.Select(balances, config.GetBalanceByUserIdSqlQuery, userId)
+	if err != nil {
+		return nil, fmt.Errorf("failed get user balances: %w", err)
+	}
+
+	return balances, nil
 }
 
 func (cl *PgClient) Exec(query string, args ...interface{}) interface{} {

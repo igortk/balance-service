@@ -5,9 +5,7 @@ import (
 	proto "balance-service/dto/proto"
 	"balance-service/services/pg"
 	"balance-service/services/rmq/senders"
-	"balance-service/util"
 	"fmt"
-	gitProto "github.com/golang/protobuf/proto"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -16,31 +14,54 @@ type GetBalanceByUserIdHandler struct {
 	sResponse senders.Sender
 }
 
-func NewGetBalanceByUserIdHandler(pgCl *pg.PgClient, s senders.Sender) GetBalanceByUserIdHandler {
-	return GetBalanceByUserIdHandler{
+func NewGetBalanceByUserIdHandler(pgCl *pg.PgClient, s senders.Sender) *GetBalanceByUserIdHandler {
+	return &GetBalanceByUserIdHandler{
 		pgCl:      pgCl,
 		sResponse: s,
 	}
 }
 
-func (h GetBalanceByUserIdHandler) HandleMessage(body []byte) {
-	req := &proto.GetBalanceByUserIdRequest{}
-	err := gitProto.Unmarshal(body, req)
-	log.Printf("received request: %s", req)
-	util.IsError(err, "failed to unmarshal message")
-
-	balances, err := h.pgCl.GetBalances(fmt.Sprintf(config.GetBalanceByUserIdSqlQuery, req.UserId))
-	util.IsError(err, "Failed select user balance by currency and user_id")
-
-	resp := &proto.GetBalanceByUserIdResponse{
-		Id: req.Id,
-		UserBalance: &proto.UserBalance{
-			UserId:   req.UserId,
-			Balances: balances,
-		},
+func (h *GetBalanceByUserIdHandler) HandleMessage(body []byte) {
+	req, err := unmarshalRequest[*proto.GetBalanceByUserIdRequest](&body)
+	if err != nil {
+		log.Errorf("Failed deserialize request: %v", err)
+		return
 	}
 
-	body, err = gitProto.Marshal(resp)
-	util.IsError(err, "failed to marshal message")
-	h.sResponse.SendMessage(config.RabbitBalanceExchange, config.GetBalanceByUserIdResponseRoutingKey, body)
+	resp := h.processing(req)
+
+	if err := h.send(resp); err != nil {
+		log.Errorf("Can't send response: %v", err)
+	}
+}
+
+func (h *GetBalanceByUserIdHandler) processing(req *proto.GetBalanceByUserIdRequest) *proto.GetBalanceByUserIdResponse {
+	log.Infof("Start processing request by Id: %s", req.Id)
+
+	resp := &proto.GetBalanceByUserIdResponse{Id: req.Id, UserId: req.UserId}
+	balances, err := h.pgCl.GetUserBalances(req.UserId)
+	resp.UserBalance = balances
+
+	if err != nil {
+		log.Errorf("Can`t get user balances: %v", err)
+		resp.Error = &proto.Error{
+			Code:    409,
+			Message: "Problem user balances",
+		}
+	}
+
+	log.Infof("Finish processing request by Id: %s", req.Id)
+	return resp
+}
+
+func (h *GetBalanceByUserIdHandler) send(resp *proto.GetBalanceByUserIdResponse) error {
+	respBody, err := marshalResponse(resp)
+	if err != nil {
+		return fmt.Errorf("failed serialize response GetBalanceByUserIdResponse: %v", err)
+	}
+
+	h.sResponse.SendMessage(config.RabbitBalanceExchange, config.GetBalanceByUserIdResponseRoutingKey, *respBody)
+	log.Infof("Send response for GetBalanceByUserIdRequest, UserId [%s], ResponseId [%s]", resp.UserId, resp.Id)
+
+	return nil
 }
