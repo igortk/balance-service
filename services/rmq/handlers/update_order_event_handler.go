@@ -10,17 +10,18 @@ import (
 	"time"
 )
 
+// TODO refactor
 type UpdateOrderEventHandler struct {
-	pgCl *pg.PgClient
+	pgCl *pg.Client
 }
 
-func NewUpdateOrderEventHandler(pgCl *pg.PgClient) *UpdateOrderEventHandler {
+func NewUpdateOrderEventHandler(pgCl *pg.Client) *UpdateOrderEventHandler {
 	return &UpdateOrderEventHandler{
 		pgCl: pgCl,
 	}
 }
 
-func (h UpdateOrderEventHandler) HandleMessage(body []byte) {
+func (h *UpdateOrderEventHandler) HandleMessage(body []byte) {
 	event := &proto.OrderUpdateEvent{}
 	err := gitProto.Unmarshal(body, event)
 	util.IsError(err, "Failed to unmarshal message")

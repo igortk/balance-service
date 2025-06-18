@@ -2,16 +2,18 @@ package consumers
 
 import (
 	"balance-service/services/rmq/handlers"
+	"context"
 	log "github.com/sirupsen/logrus"
+	"sync"
 
 	"github.com/streadway/amqp"
 )
 
 type Consumer struct {
-	Connection *amqp.Connection
-	Channel    *amqp.Channel
-	Queue      amqp.Queue
-	Handler    handlers.MessageHandler
+	connection *amqp.Connection
+	channel    *amqp.Channel
+	queue      *amqp.Queue
+	handler    handlers.MessageHandler
 }
 
 func NewConsumer(connection *amqp.Connection, exchange, routingKey, queueName string, handler handlers.MessageHandler) *Consumer {
@@ -55,16 +57,18 @@ func NewConsumer(connection *amqp.Connection, exchange, routingKey, queueName st
 	}
 
 	return &Consumer{
-		Connection: connection,
-		Channel:    channel,
-		Queue:      queue,
-		Handler:    handler,
+		connection: connection,
+		channel:    channel,
+		queue:      &queue,
+		handler:    handler,
 	}
 }
 
-func (c *Consumer) ConsumeMessages() {
-	msgs, err := c.Channel.Consume(
-		c.Queue.Name,
+func (c *Consumer) ConsumeMessages(ctx context.Context, wg *sync.WaitGroup) {
+	defer wg.Done()
+
+	msgs, err := c.channel.Consume(
+		c.queue.Name,
 		"",
 		true,
 		false,
@@ -75,12 +79,19 @@ func (c *Consumer) ConsumeMessages() {
 	if err != nil {
 		log.Fatalf("Failed to register a consumers: %v", err)
 	}
+
+	go func() {
+		<-ctx.Done()
+		log.Println("Context cancelled, stopping consumer...")
+		_ = c.channel.Cancel("", false)
+	}()
+
 	for d := range msgs {
-		c.Handler.HandleMessage(d.Body)
+		c.handler.HandleMessage(d.Body)
 	}
 }
 
 func (c *Consumer) Close() {
-	c.Channel.Close()
-	c.Connection.Close()
+	c.channel.Close()
+	c.connection.Close()
 }

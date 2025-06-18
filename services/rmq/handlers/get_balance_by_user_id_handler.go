@@ -10,11 +10,11 @@ import (
 )
 
 type GetBalanceByUserIdHandler struct {
-	pgCl      *pg.PgClient
-	sResponse senders.Sender
+	pgCl      *pg.Client
+	sResponse *senders.Sender
 }
 
-func NewGetBalanceByUserIdHandler(pgCl *pg.PgClient, s senders.Sender) *GetBalanceByUserIdHandler {
+func NewGetBalanceByUserIdHandler(pgCl *pg.Client, s *senders.Sender) *GetBalanceByUserIdHandler {
 	return &GetBalanceByUserIdHandler{
 		pgCl:      pgCl,
 		sResponse: s,
@@ -39,6 +39,13 @@ func (h *GetBalanceByUserIdHandler) processing(req *proto.GetBalanceByUserIdRequ
 	log.Infof("Start processing request by Id: %s", req.Id)
 
 	resp := &proto.GetBalanceByUserIdResponse{Id: req.Id, UserId: req.UserId}
+
+	reqErr := h.validation(req)
+	if reqErr != nil {
+		resp.Error = reqErr
+		return resp
+	}
+
 	balances, err := h.pgCl.GetUserBalances(req.UserId)
 	resp.UserBalance = balances
 
@@ -54,14 +61,37 @@ func (h *GetBalanceByUserIdHandler) processing(req *proto.GetBalanceByUserIdRequ
 	return resp
 }
 
+func (h *GetBalanceByUserIdHandler) validation(req *proto.GetBalanceByUserIdRequest) *proto.Error {
+	if isValidUUID(req.Id) {
+		log.Errorf("Invalid request id: %v", req.Id)
+		return &proto.Error{
+			Code:    409,
+			Message: "Invalid request id",
+		}
+	}
+
+	if isValidUUID(req.UserId) {
+		log.Errorf("Invalid user id: %v", req.UserId)
+		return &proto.Error{
+			Code:    409,
+			Message: "Invalid user id:",
+		}
+	}
+
+	return nil
+}
+
 func (h *GetBalanceByUserIdHandler) send(resp *proto.GetBalanceByUserIdResponse) error {
 	respBody, err := marshalResponse(resp)
 	if err != nil {
 		return fmt.Errorf("failed serialize response GetBalanceByUserIdResponse: %v", err)
 	}
 
-	h.sResponse.SendMessage(config.RabbitBalanceExchange, config.GetBalanceByUserIdResponseRoutingKey, *respBody)
-	log.Infof("Send response for GetBalanceByUserIdRequest, UserId [%s], ResponseId [%s]", resp.UserId, resp.Id)
+	err = h.sResponse.SendMessage(config.RabbitBalanceExchange, config.GetBalanceByUserIdResponseRoutingKey, *respBody)
+	if err != nil {
+		return fmt.Errorf("failed send response GetBalanceByUserIdResponse: %v", err)
+	}
 
+	log.Infof("Send response for GetBalanceByUserIdRequest, UserId [%s], ResponseId [%s]", resp.UserId, resp.Id)
 	return nil
 }

@@ -14,7 +14,7 @@ const (
 	GetBalanceByUserIdResponseRoutingKey = "r.balance.GetBalanceByUserIdResponse"
 )
 
-// Queue name
+// queue name
 const (
 	UpdatedOrderEventQueueName         = "q.balance-service.order.event"
 	GetBalanceByUserIdRequestQueueName = "q.balance-service.user.balance.get.request"
@@ -26,8 +26,10 @@ const (
 	ErrLoadConfig = "Error load configuration"
 	ErrParseLog   = "Error parse log level"
 	ErrConnectDb  = "Error connect db"
+	ErrConnectRmq = "Error connect RabbitMq"
 )
 
+// TODO move to pg client common
 const (
 	//GetBalanceByUserIdSqlQuery         = "SELECT * FROM balances b WHERE b.user_id = %s"
 	GetBalanceByUserIdCurrencySqlQuery = "SELECT b.currency_id as currency,\nb.balance as balance,\nb.locked_balance as locked_balance,\nb.updated_date as updated_date\nFROM balances b WHERE b.user_id = $1 and b.currency_id = $2"

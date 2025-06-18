@@ -1,26 +1,28 @@
 package senders
 
 import (
-	"balance-service/util"
+	"fmt"
 	"github.com/streadway/amqp"
 )
 
 type Sender struct {
-	Connection *amqp.Connection
-	Channel    *amqp.Channel
+	connection *amqp.Connection
+	channel    *amqp.Channel
 }
 
-func NewSender(connection *amqp.Connection) Sender {
+func NewSender(connection *amqp.Connection) (*Sender, error) {
 	channel, err := connection.Channel()
-	util.IsError(err, "Errror Chanel")
-	return Sender{
-		Connection: connection,
-		Channel:    channel,
+	if err != nil {
+		return nil, fmt.Errorf("failed open cannel for sender: %v", err)
 	}
+	return &Sender{
+		connection: connection,
+		channel:    channel,
+	}, nil
 }
 
-func (s *Sender) SendMessage(exchange, routingKey string, message []byte) {
-	err := s.Channel.Publish(
+func (s *Sender) SendMessage(exchange, routingKey string, message []byte) error {
+	err := s.channel.Publish(
 		exchange,
 		routingKey,
 		false,
@@ -30,10 +32,15 @@ func (s *Sender) SendMessage(exchange, routingKey string, message []byte) {
 			Body:        message,
 		},
 	)
-	util.IsError(err, "err send message")
+
+	if err != nil {
+		return fmt.Errorf("failed send message: %v", err)
+	}
+
+	return nil
 }
 
 func (s *Sender) Close() {
-	s.Channel.Close()
-	s.Connection.Close()
+	s.channel.Close()
+	s.connection.Close()
 }

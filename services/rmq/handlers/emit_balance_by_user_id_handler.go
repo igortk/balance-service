@@ -11,11 +11,11 @@ import (
 var minAmount = 0.1
 
 type EmitBalanceByUserIdHandler struct {
-	pgCl      *pg.PgClient
+	pgCl      *pg.Client
 	sResponse *senders.Sender
 }
 
-func NewEmitBalanceByUserIdHandler(pgCl *pg.PgClient, s *senders.Sender) *EmitBalanceByUserIdHandler {
+func NewEmitBalanceByUserIdHandler(pgCl *pg.Client, s *senders.Sender) *EmitBalanceByUserIdHandler {
 	return &EmitBalanceByUserIdHandler{
 		pgCl:      pgCl,
 		sResponse: s,
@@ -103,7 +103,10 @@ func (h *EmitBalanceByUserIdHandler) send(resp *proto.EmitBalanceByUserIdRespons
 		return fmt.Errorf("failed serialize response EmitBalanceByUserIdResponse: %v", err)
 	}
 
-	h.sResponse.SendMessage("e.balances.forward", "r.balance.EmitUserBalanceResponse", *respBody)
+	err = h.sResponse.SendMessage("e.balances.forward", "r.balance.EmitUserBalanceResponse", *respBody)
+	if err != nil {
+		return fmt.Errorf("failed send response EmitBalanceByUserIdResponse: %v", err)
+	}
 	log.Infof("Send response for EmitBalanceByUserIdRequest, UserId [%s], ResponseId [%s]", resp.UserId, resp.Id)
 
 	return nil
