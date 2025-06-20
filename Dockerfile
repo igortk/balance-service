@@ -1,11 +1,19 @@
-FROM golang:1.20
+FROM golang:1.21-alpine AS builder
 
-WORKDIR /balance-service
+RUN apk add --no-cache git
 
-COPY . .
+WORKDIR /app
 
-RUN go build -o balance-service
+COPY go.mod go.sum ./
+RUN go mod download
 
-EXPOSE 8080
+COPY . /app
 
-CMD ["./balance-service"]
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+    go build -ldflags="-s -w" -o balance-service ./cmd
+
+FROM alpine:3.16
+
+COPY --from=builder /app/balance-service /balance-service
+
+ENTRYPOINT ["/balance-service"]
