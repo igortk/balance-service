@@ -74,7 +74,7 @@ func (h *GetBalanceByUserIdHandler) validation(req *proto.GetBalanceByUserIdRequ
 		log.Errorf("Invalid user id: %v", req.UserId)
 		return &proto.Error{
 			Code:    409,
-			Message: "Invalid user id:",
+			Message: "Invalid user id",
 		}
 	}
 
