@@ -34,22 +34,22 @@ func (cl *Client) EmitCurrency(userId, currencyName string, amount float64) erro
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 
-	result, err := tx.Exec(config.EmitBalanceByUserIdSqlQuery, currencyName, amount, 0, time.Now().Unix(), userId)
+	result, err := tx.Exec(EmitBalanceByUserIdSqlQuery, currencyName, amount, 0, time.Now().Unix(), userId)
 	if err != nil {
 		tx.Rollback()
 		return fmt.Errorf("failed to execute balance update: %w", err)
 	}
 
-	rows, err := result.RowsAffected()
+	_, err = result.RowsAffected()
 	if err != nil {
 		tx.Rollback()
 		return fmt.Errorf("cannot get rows affected: %w", err)
 	}
-
-	if rows != 1 {
-		tx.Rollback()
-		return fmt.Errorf("expected 1 row to be affected, but got %d", rows)
-	}
+	/*
+		if rows != 1 {
+			tx.Rollback()
+			return fmt.Errorf("expected 1 row to be affected, but got %d", rows)
+		}*/
 
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("failed to commit transaction: %w", err)
@@ -59,20 +59,20 @@ func (cl *Client) EmitCurrency(userId, currencyName string, amount float64) erro
 }
 
 func (cl *Client) GetUserBalance(userId, currencyName string) (*proto.Balance, error) {
-	balance := &proto.Balance{}
+	balance := make([]proto.Balance, 0, 1)
 
-	err := cl.db.Select(balance, config.GetBalanceByUserIdCurrencySqlQuery, userId, currencyName)
+	err := cl.db.Select(&balance, GetBalanceByUserIdCurrencySqlQuery, userId, currencyName)
 	if err != nil {
 		return nil, fmt.Errorf("failed get user balance: %w", err)
 	}
 
-	return balance, nil
+	return &balance[0], nil
 }
 
 func (cl *Client) GetUserBalances(userId string) ([]*proto.Balance, error) {
 	var balances []*proto.Balance
 
-	err := cl.db.Select(balances, config.GetBalanceByUserIdSqlQuery, userId)
+	err := cl.db.Select(balances, GetBalanceByUserIdSqlQuery, userId)
 	if err != nil {
 		return nil, fmt.Errorf("failed get user balances: %w", err)
 	}

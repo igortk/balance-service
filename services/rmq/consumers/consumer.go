@@ -23,7 +23,7 @@ func NewConsumer(connection *amqp.Connection, exchange, routingKey, queueName st
 	}
 	err = channel.ExchangeDeclare(
 		exchange,
-		"topic",
+		amqp.ExchangeTopic,
 		true,
 		false,
 		false,
@@ -80,14 +80,28 @@ func (c *Consumer) ConsumeMessages(ctx context.Context, wg *sync.WaitGroup) {
 		log.Fatalf("Failed to register a consumers: %v", err)
 	}
 
+	stopChant := make(chan struct{})
+
 	go func() {
 		<-ctx.Done()
 		log.Println("Context cancelled, stopping consumer...")
 		_ = c.channel.Cancel("", false)
+		stopChant <- struct{}{}
 	}()
 
-	for d := range msgs {
-		c.handler.HandleMessage(d.Body)
+	for {
+		select {
+		case val, ok := <-msgs:
+			if !ok {
+				log.Println("RabbitMQ channel closed.")
+				return
+			}
+			c.handler.HandleMessage(val.Body)
+
+		case <-stopChant:
+			log.Println("Stopped consuming messages.")
+			return
+		}
 	}
 }
 

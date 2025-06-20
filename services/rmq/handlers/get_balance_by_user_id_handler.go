@@ -22,7 +22,7 @@ func NewGetBalanceByUserIdHandler(pgCl *pg.Client, s *senders.Sender) *GetBalanc
 }
 
 func (h *GetBalanceByUserIdHandler) HandleMessage(body []byte) {
-	req, err := unmarshalRequest[*proto.GetBalanceByUserIdRequest](&body)
+	req, err := unmarshalRequest[*proto.GetBalanceByUserIdRequest](body)
 	if err != nil {
 		log.Errorf("Failed deserialize request: %v", err)
 		return

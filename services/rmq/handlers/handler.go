@@ -4,22 +4,38 @@ import (
 	"fmt"
 	gitProto "github.com/golang/protobuf/proto"
 	"github.com/google/uuid"
+	"google.golang.org/protobuf/proto"
+	"reflect"
 )
 
 type MessageHandler interface {
 	HandleMessage([]byte)
 }
 
-func unmarshalRequest[T gitProto.Message](body *[]byte) (T, error) {
-	var req T
+func unmarshalRequest[T proto.Message](body []byte) (T, error) {
+	var zero T
 
-	err := gitProto.Unmarshal(*body, req)
-	if err != nil {
-		var zero T
+	t := reflect.TypeOf(zero)
+	if t == nil {
+		return zero, fmt.Errorf("type is nil")
+	}
+
+	if t.Kind() != reflect.Ptr {
+		return zero, fmt.Errorf("T must be a pointer to a proto.Message")
+	}
+
+	val := reflect.New(t.Elem()).Interface()
+
+	msg, ok := val.(T)
+	if !ok {
+		return zero, fmt.Errorf("failed to cast created value to T")
+	}
+
+	if err := proto.Unmarshal(body, msg); err != nil {
 		return zero, fmt.Errorf("failed to unmarshal message: %w", err)
 	}
 
-	return req, nil
+	return msg, nil
 }
 
 func marshalResponse(resp gitProto.Message) (*[]byte, error) {
@@ -33,5 +49,5 @@ func marshalResponse(resp gitProto.Message) (*[]byte, error) {
 
 func isValidUUID(field string) bool {
 	_, err := uuid.Parse(field)
-	return err == nil
+	return err != nil
 }

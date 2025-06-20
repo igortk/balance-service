@@ -7,6 +7,7 @@ import (
 	"balance-service/services/rmq/handlers"
 	"balance-service/services/rmq/senders"
 	"context"
+	log "github.com/sirupsen/logrus"
 	"github.com/streadway/amqp"
 	"sync"
 )
@@ -39,12 +40,12 @@ func (s *Server) Run(ctx context.Context, wg *sync.WaitGroup) {
 
 	s.runAllConsumers(ctx, wg)
 
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		}
+	select {
+	case <-ctx.Done():
+		log.Info("Stopped server")
+		return
 	}
+
 }
 
 func (s *Server) runAllConsumers(ctx context.Context, wg *sync.WaitGroup) {

@@ -23,7 +23,7 @@ func NewEmitBalanceByUserIdHandler(pgCl *pg.Client, s *senders.Sender) *EmitBala
 }
 
 func (h *EmitBalanceByUserIdHandler) HandleMessage(body []byte) {
-	req, err := unmarshalRequest[*proto.EmitBalanceByUserIdRequest](&body)
+	req, err := unmarshalRequest[*proto.EmitBalanceByUserIdRequest](body)
 	if err != nil {
 		log.Errorf("Failed deserialize request: %v", err)
 		return
@@ -35,6 +35,7 @@ func (h *EmitBalanceByUserIdHandler) HandleMessage(body []byte) {
 		log.Errorf("Can't send response: %v", err)
 	}
 }
+
 func (h *EmitBalanceByUserIdHandler) processing(req *proto.EmitBalanceByUserIdRequest) *proto.EmitBalanceByUserIdResponse {
 	log.Infof("Start processing request by Id: %s", req.Id)
 
@@ -82,7 +83,7 @@ func (h *EmitBalanceByUserIdHandler) validation(req *proto.EmitBalanceByUserIdRe
 		log.Errorf("Invalid user id: %v", req.UserId)
 		return &proto.Error{
 			Code:    409,
-			Message: "Invalid user id:",
+			Message: "Invalid user id",
 		}
 	}
 
@@ -90,7 +91,7 @@ func (h *EmitBalanceByUserIdHandler) validation(req *proto.EmitBalanceByUserIdRe
 		log.Errorf("Invalid user id: %v", req.UserId)
 		return &proto.Error{
 			Code:    409,
-			Message: "Invalid user id:",
+			Message: fmt.Sprintf("Amount less then %f", minAmount),
 		}
 	}
 
@@ -103,7 +104,7 @@ func (h *EmitBalanceByUserIdHandler) send(resp *proto.EmitBalanceByUserIdRespons
 		return fmt.Errorf("failed serialize response EmitBalanceByUserIdResponse: %v", err)
 	}
 
-	err = h.sResponse.SendMessage("e.balances.forward", "r.balance.EmitUserBalanceResponse", *respBody)
+	err = h.sResponse.SendMessage("e.balances.forward", "r.balance-service.EmitUserBalanceResponse", *respBody)
 	if err != nil {
 		return fmt.Errorf("failed send response EmitBalanceByUserIdResponse: %v", err)
 	}
