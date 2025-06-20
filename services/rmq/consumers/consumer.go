@@ -5,6 +5,7 @@ import (
 	"context"
 	log "github.com/sirupsen/logrus"
 	"sync"
+	"time"
 
 	"github.com/streadway/amqp"
 )
@@ -84,8 +85,11 @@ func (c *Consumer) ConsumeMessages(ctx context.Context, wg *sync.WaitGroup) {
 
 	go func() {
 		<-ctx.Done()
-		log.Println("Context cancelled, stopping consumer...")
+
+		log.Infof("Context cancelled, stopping consumer [%s] (waiting time is 10 seconds)...", c.queue.Name)
 		_ = c.channel.Cancel("", false)
+
+		<-time.After(10 * time.Second)
 		stopChant <- struct{}{}
 	}()
 

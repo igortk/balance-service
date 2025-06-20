@@ -53,5 +53,4 @@ func main() {
 
 	wg.Wait()
 	log.Infoln("Shutdown complete.")
-
 }
