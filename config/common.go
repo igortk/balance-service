@@ -10,13 +10,13 @@ const (
 const (
 	GetBalanceByUserIdRequestRoutingKey  = "r.balance-service.balances.#.GetBalanceByUserIdRequest"
 	EmitBalanceByUserIdRequestRoutingKey = "r.balance-service.balances.#.EmitUserBalanceRequest"
-	UpdatedOrderEventRoutingKey          = "r.event.order.OrderUpdateEvent"
+	UpdatedOrderEventRoutingKey          = "r.ops.balance-service.order.OrderUpdateEvent"
 	GetBalanceByUserIdResponseRoutingKey = "r.balance.GetBalanceByUserIdResponse"
 )
 
 // queue name
 const (
-	UpdatedOrderEventQueueName         = "q.balance-service.order.event"
+	UpdatedOrderEventQueueName         = "q.balance-service.order.update-event"
 	GetBalanceByUserIdRequestQueueName = "q.balance-service.user.balance.get.request"
 	EmitUserBalanceRequestQueueName    = "q.balance-service.user.balance.emit.request"
 )

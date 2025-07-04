@@ -34,11 +34,14 @@ func (s *Server) Run(ctx context.Context, wg *sync.WaitGroup) {
 	//handlers
 	emitBalanceHandler := handlers.NewEmitBalanceByUserIdHandler(s.pgClient, s.sender)
 	getBalanceByUserIdHandler := handlers.NewGetBalanceByUserIdHandler(s.pgClient, s.sender)
+	updateOrderEventHandler := handlers.NewUpdateOrderEventHandler(s.pgClient)
 	log.Info("Handlers was prepared")
 
 	//consumers
 	s.consumers["GetBalanceByUserIdConsumer"] = consumers.NewConsumer(s.conn, config.RabbitBalanceExchange, config.GetBalanceByUserIdRequestRoutingKey, config.GetBalanceByUserIdRequestQueueName, getBalanceByUserIdHandler)
 	s.consumers["EmitBalanceByUserIdConsumer"] = consumers.NewConsumer(s.conn, config.RabbitBalanceExchange, config.EmitBalanceByUserIdRequestRoutingKey, config.EmitUserBalanceRequestQueueName, emitBalanceHandler)
+
+	s.consumers["UpdateOrderEventConsumer"] = consumers.NewConsumer(s.conn, config.RabbitBalanceExchange, config.UpdatedOrderEventRoutingKey, config.UpdatedOrderEventQueueName, updateOrderEventHandler)
 	log.Info("Consumers was prepared")
 
 	s.runAllConsumers(ctx, wg)

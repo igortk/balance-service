@@ -3,7 +3,10 @@ package pg
 import (
 	"balance-service/config"
 	"balance-service/dto/proto"
+	"balance-service/services/rmq/handlers"
 	"balance-service/util"
+	"context"
+	"database/sql"
 	"fmt"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/jmoiron/sqlx"
@@ -45,11 +48,6 @@ func (cl *Client) EmitCurrency(userId, currencyName string, amount float64) erro
 		tx.Rollback()
 		return fmt.Errorf("cannot get rows affected: %w", err)
 	}
-	/*
-		if rows != 1 {
-			tx.Rollback()
-			return fmt.Errorf("expected 1 row to be affected, but got %d", rows)
-		}*/
 
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("failed to commit transaction: %w", err)
@@ -78,6 +76,44 @@ func (cl *Client) GetUserBalances(userId string) ([]*proto.Balance, error) {
 	}
 
 	return balances, nil
+}
+
+func (cl *Client) UpdateBalancesTx(users ...*handlers.User) (err error) {
+	ctx := context.Background()
+
+	tx, err := cl.db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if p := recover(); p != nil {
+			_ = tx.Rollback()
+			panic(p)
+		} else if err != nil {
+			_ = tx.Rollback()
+		} else {
+			err = tx.Commit()
+		}
+	}()
+
+	now := time.Now().Unix()
+	for _, u := range users {
+		if u.CurrencyName != "" && u.Balance != 0 {
+			_, err = tx.ExecContext(ctx, UpdateBalanceByUserIdSqlQuery, u.CurrencyName, u.Balance, 0, now, u.UserId)
+			if err != nil {
+				return fmt.Errorf("balance update failed: %w", err)
+			}
+		}
+
+		if u.LockedCurrencyName != "" && u.LockedBalance != 0 {
+			_, err = tx.ExecContext(ctx, UpdateBalanceByUserIdSqlQuery, u.LockedCurrencyName, 0, u.LockedBalance, now, u.UserId)
+			if err != nil {
+				return fmt.Errorf("locked balance update failed: %w", err)
+			}
+		}
+	}
+
+	return nil
 }
 
 func (cl *Client) Exec(query string, args ...interface{}) interface{} {

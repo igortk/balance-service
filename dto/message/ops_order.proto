@@ -26,6 +26,7 @@ message RemoveOrderRequest{
 message OrderUpdateEvent{
   string id = 1;
   Order order = 2;
+  MatchedUser matched_user = 4;
   error.Error error = 3;
 }
 
@@ -42,13 +43,18 @@ message Order{
   int64 createdDate = 10;
 }
 
+message MatchedUser {
+  string user_id = 1;
+  double volume = 2;
+  double price = 3;
+}
+
 enum OrderStatus{
   ORDER_STATUS_UNDEFINED = 0;
   ORDER_STATUS_NEW = 1;
-  ORDER_STATUS_ACTIVE = 2;
-  ORDER_STATUS_MATCHED = 3;
-  ORDER_STATUS_DONE = 4;
-  ORDER_STATUS_REMOVED = 5;
+  ORDER_STATUS_MATCHED = 2;
+  ORDER_STATUS_DONE = 3;
+  ORDER_STATUS_REMOVED = 4;
 }
 
 enum Direction{

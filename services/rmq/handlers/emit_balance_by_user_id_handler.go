@@ -25,7 +25,7 @@ func NewEmitBalanceByUserIdHandler(pgCl *pg.Client, s *senders.Sender) *EmitBala
 func (h *EmitBalanceByUserIdHandler) HandleMessage(body []byte) {
 	req, err := unmarshalRequest[*proto.EmitBalanceByUserIdRequest](body)
 	if err != nil {
-		log.Errorf("Failed deserialize request: %v", err)
+		log.Errorf("Failed deserialize EmitBalanceByUserIdRequest: %v", err)
 		return
 	}
 
