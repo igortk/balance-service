@@ -18,7 +18,7 @@ It listens to order events via **RabbitMQ**, processes them atomically, and upda
 
 ### 📥 Subscribed Queue: `order.events`
 
-**Event:** `OrderUpdateEvent` (sent from Order Service)  
+**Event:** `OrderUpdateEvent` (sent from Order Processing Service)  
 **Format (proto):**
 ```proto
 message OrderUpdateEvent {
@@ -27,6 +27,32 @@ message OrderUpdateEvent {
   MatchedUser matched_user = 4;
   error.Error error = 3;
 }
+```
+
+#### 📦 Order Structure:
+```proto
+message Order {
+  string order_id = 1;
+  string user_id = 2;
+  string pair = 3; // e.g., "USD/EUR"
+  double init_volume = 4;
+  double fill_volume = 5;
+  double init_price = 6;
+  OrderStatus status = 7;
+  Direction direction = 8;
+  int64 updatedDate = 9;
+  int64 createdDate = 10;
+}
+```
+
+#### 👤 Matched User:
+```proto
+message MatchedUser {
+  string user_id = 1;
+  double volume = 2;
+  double price = 3;
+}
+```
 
 🛡️ Transaction Safety (ACID)
 
