@@ -1,7 +1,7 @@
 # 📘 Balance Service
 
-**Balance Service** is a core microservice in the exchange system that manages user balances.  
-It listens to order events via **RabbitMQ**, processes them atomically, and updates balances accordingly in the database.
+**Balance Service** is a microservice in the exchange system that manages user balances.  
+It listens to order events/requests via **RabbitMQ**, processes them atomically, and updates balances accordingly in the database.
 
 ---
 
@@ -152,4 +152,10 @@ func (cl *Client) UpdateBalancesTx(ctx context.Context, db *sql.DB, users ...*Us
 If any error occurs — the entire operation is rolled back to ensure consistency.
 
 ---
+
+### 🐳 Running via docker
+_Coming soon_
+
+---
+
 Made with ❤️ by the Ihor Tkachenko, issues, and forks welcome!
