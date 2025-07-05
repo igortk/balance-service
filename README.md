@@ -13,10 +13,16 @@ It listens to order events via **RabbitMQ**, processes them atomically, and upda
 - 🔐 **ACID Transactions** – All updates are safely wrapped in SQL transactions for consistency.
 
 ---
+### 🧰 Tech Stack
 
-## 🐇 RabbitMQ Event Handling
-
-### 📥 Subscribed Queue: `order.events`
+- 🐹 **Go (Golang)** — core business logic and services
+- 🐇 **RabbitMQ** — asynchronous communication between services
+- 📦 **PostgreSQL** — relational storage for balances and orders
+- ⚡ **gRPC + Protobuf** — efficient binary communication format
+- ✅ **SQL Transactions** — ensures ACID-compliant balance updates
+---
+## 🐇 RabbitMQ Request/Event Handling
+### 🔄 **Handle Order Events**
 
 **Event:** `OrderUpdateEvent` (sent from Order Processing Service)  
 **Format (proto):**
@@ -53,30 +59,97 @@ message MatchedUser {
   double price = 3;
 }
 ```
+#### 🔢 Enums
+```proto
+enum OrderStatus {
+  ORDER_STATUS_UNDEFINED = 0;
+  ORDER_STATUS_NEW = 1;
+  ORDER_STATUS_MATCHED = 2;
+  ORDER_STATUS_DONE = 3;
+  ORDER_STATUS_REMOVED = 4;
+}
 
-🛡️ Transaction Safety (ACID)
+enum Direction {
+  ORDER_DIRECTION_UNDEFINED = 0;
+  ORDER_DIRECTION_BUY = 1;
+  ORDER_DIRECTION_SELL = 2;
+}
+```
+---
+
+### 🔄 Business Logic
+
+The balance logic depends on the order status and direction:
+
+#### 🟡 On `ORDER_STATUS_NEW`
+The user's funds are **locked** for trade execution:
+
+- **BUY**  
+  Lock `quote` currency:  
+  `locked_balance = init_price × init_volume`
+
+- **SELL**  
+  Lock `base` currency:  
+  `locked_balance = init_volume`
+
+#### 🟢 On `ORDER_STATUS_MATCHED`
+Funds are transferred between users:
+
+- **BUYER**
+  - 🔓 Unlock `quote` currency (reduce locked)
+  - 💰 Increase available balance in `base` currency (e.g., BTC)
+
+- **SELLER**
+  - 🔓 Unlock `base` currency (reduce locked)
+  - 💰 Increase available balance in `quote` currency (e.g., USD)
+
+### 💰 **Emit User Balance**
+```proto
+message EmitBalanceByUserIdRequest{
+  string id = 1;
+  string user_id = 2;
+  string currency_name = 3;
+  double amount = 4;
+}
+
+message EmitBalanceByUserIdResponse{
+  string id = 1;
+  string user_id = 2;
+  Balance balance = 3;
+  error.Error error = 4;
+}
+```
+### **Get User Balance**
+```proto
+message GetBalanceByUserIdRequest{
+  string id = 1;
+  string user_id = 2;
+}
+
+message GetBalanceByUserIdResponse{
+  string id = 1;
+  string user_id = 2;
+  repeated Balance user_balance = 3;
+  error.Error error = 4;
+}
+
+message Balance{
+  string currency = 1;
+  double balance = 2;
+  double locked_balance = 3;
+  int64 updated_date = 4;
+}
+```
+---
+
+### 🛡️ Transaction Safety (ACID)
 
 Balance updates are wrapped in transactional logic using:
 
+```go
 func (cl *Client) UpdateBalancesTx(ctx context.Context, db *sql.DB, users ...*User) (err error)
-
+```
 If any error occurs — the entire operation is rolled back to ensure consistency.
 
-
-🧰 Tech Stack
-
-🐹 Go (Golang)
-
-🐇 RabbitMQ
-
-📦 PostgreSQL
-
-⚡ gRPC + Protocol Buffers
-
-☁️ Docker (soon)
-
-✅ SQL Transactions
-
-👨‍💻 Maintainers
-
-Made with ❤️ by the Exchange Platform TeamPRs, issues, and forks welcome!
+---
+Made with ❤️ by the Ihor Tkachenko, issues, and forks welcome!
