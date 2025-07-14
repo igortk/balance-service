@@ -44,14 +44,24 @@ func (h *UpdateOrderEventHandler) processing(event *proto.OrderUpdateEvent) {
 		case proto.Direction_ORDER_DIRECTION_BUY:
 			owner.LockedCurrencyName = quote
 			owner.LockedBalance = event.Order.InitPrice * event.Order.InitVolume
+
+			owner.CurrencyName = base
+			owner.Balance = event.Order.InitVolume
 			break
 		case proto.Direction_ORDER_DIRECTION_SELL:
 			owner.LockedCurrencyName = base
 			owner.LockedBalance = event.Order.InitVolume
+
+			owner.CurrencyName = quote
+			owner.Balance = event.Order.InitPrice * event.Order.InitVolume
 			break
 		default:
 			log.Errorf("unsupported direction value")
 			return
+		}
+
+		if err := h.pgCl.UpdateBalancesTx(owner); err != nil {
+			log.Errorf("failed to update balances: %v", err)
 		}
 	}
 
