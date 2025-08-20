@@ -4,24 +4,29 @@ import "message/error.proto";
 package ops;
 option go_package = "./proto";
 
-message RemoveOrderRequest{
-  string id = 1;
-  string order_id = 2;
-}
-
+// Create Order
 message CreateOrderRequest{
   string id = 1;
-  string user_id = 2;
-  string order_id = 3;
+  string order_id = 2;
+  string user_id = 3;
   string pair = 4;
   double init_volume = 5;
   double init_price = 6;
   Direction direction = 7;
 }
+//=========================================
+
+// Remove Order
+message RemoveOrderRequest{
+  string id = 1;
+  string order_id = 2;
+}
+//=========================================
 
 message OrderUpdateEvent{
   string id = 1;
   Order order = 2;
+  MatchedUser matched_user = 4;
   error.Error error = 3;
 }
 
@@ -38,11 +43,18 @@ message Order{
   int64 createdDate = 10;
 }
 
+message MatchedUser {
+  string user_id = 1;
+  double volume = 2;
+  double price = 3;
+}
+
 enum OrderStatus{
   ORDER_STATUS_UNDEFINED = 0;
-  ORDER_STATUS_ACTIVE = 1;
+  ORDER_STATUS_NEW = 1;
   ORDER_STATUS_MATCHED = 2;
-  ORDER_STATUS_REMOVED = 3;
+  ORDER_STATUS_DONE = 3;
+  ORDER_STATUS_REMOVED = 4;
 }
 
 enum Direction{

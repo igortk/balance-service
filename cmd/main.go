@@ -4,43 +4,53 @@ import (
 	"balance-service/config"
 	"balance-service/services"
 	"balance-service/services/pg"
-	"balance-service/util"
+	"balance-service/services/rmq/senders"
+	"context"
+	"fmt"
 	log "github.com/sirupsen/logrus"
+	"github.com/streadway/amqp"
+	"os"
+	"os/signal"
+	"sync"
+	"syscall"
 )
 
 func main() {
 	cfg, err := config.GetConfig()
-	util.IsError(err, config.ErrLoadConfig)
+	if err != nil {
+		log.Fatalf("Error load configuration: %v", err)
+	}
 
-	initLogs(&cfg.LoggerConfig)
+	ctx, cancel := context.WithCancel(context.Background())
 
-	initServer(cfg)
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
-	/*
-		dbClient := initPgClient(&cfg.PostreSqlConfig)
+	go func() {
+		<-sigChan
+		log.Infoln("Shutting down gracefully...")
+		cancel()
+	}()
 
-		services.InitConsumers(
-			&cfg.RabbitConfig,
-			&dbClient,
-			[]rmq.Handler{&rmq.UpdateOrderEventHandler{}},
-		)*/
-}
-func initServer(cfg *config.Config) {
-	server := services.NewServer(&cfg.PostreSqlConfig, &cfg.RabbitConfig)
-	server.InitSenders()
-	server.InitHandlers()
-	server.InitConsumers()
-	server.Run()
-	log.Printf("qwertyuiop[]asdfghjkl;'zxcvbnm,./")
-}
+	conn, err := amqp.Dial(fmt.Sprintf(config.RmqUrlConnectionPattern, cfg.RabbitConfig.Username, cfg.RabbitConfig.Password, cfg.RabbitConfig.Host, cfg.RabbitConfig.Port))
+	if err != nil {
+		log.Fatalf("Error connect RabbitMq: %v", err)
+	}
 
-func initLogs(cfg *config.LoggerConfig) {
-	logLvl, err := log.ParseLevel(cfg.Level)
-	util.IsError(err, config.ErrParseLog)
-	log.SetLevel(logLvl)
-}
+	sender, err := senders.NewSender(conn)
+	if err != nil {
+		log.Fatalf("Error create rmq sender: %v", err)
+	}
 
-func initPgClient(cfg *config.PostreSqlConfig) pg.PgClient {
-	dbClient := pg.NewClient(cfg)
-	return *dbClient
+	pgClient, err := pg.NewClient(&cfg.PostreSqlConfig)
+	if err != nil {
+		log.Fatalf("Error create pg client: %v", err)
+	}
+
+	svr := services.NewServer2(pgClient, sender, conn)
+	wg := &sync.WaitGroup{}
+	svr.Run(ctx, wg)
+
+	wg.Wait()
+	log.Infoln("Shutdown complete.")
 }

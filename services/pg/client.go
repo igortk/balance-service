@@ -3,118 +3,121 @@ package pg
 import (
 	"balance-service/config"
 	"balance-service/dto/proto"
+	"balance-service/services/rmq/handlers"
 	"balance-service/util"
+	"context"
+	"database/sql"
 	"fmt"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/jmoiron/sqlx"
-	"reflect"
+	"time"
 )
 
-type PgClient struct {
+type Client struct {
 	db *sqlx.DB
 }
 
-func NewClient(cfg *config.PostreSqlConfig) *PgClient {
+func NewClient(cfg *config.PostreSqlConfig) (*Client, error) {
 	db, err := sqlx.Connect(
 		config.DriverName,
 		fmt.Sprintf(config.PgConnectionUrlPattern, cfg.Username, cfg.Password, cfg.Host, cfg.Port, cfg.DbName))
-	util.IsError(err, "err pg connect")
 
-	return &PgClient{
+	if err != nil {
+		return nil, fmt.Errorf("failed connect to postgre: %v", err)
+	}
+
+	return &Client{
 		db: db,
-	}
+	}, nil
 }
 
-func (cl *PgClient) Exec(query string, args ...interface{}) interface{} {
-	result, err := cl.db.Exec(query, args...)
-	util.IsError(err, "Failed insert")
-	return result
-}
-
-func (cl *PgClient) Select(query string, resp interface{}, args ...interface{}) interface{} {
-	result := cl.db.Select(resp, query)
-	return result
-}
-func (cl *PgClient) GetBalances(query string) ([]*proto.Balance, error) {
-	rows, err := cl.db.Query(query)
+func (cl *Client) EmitCurrency(userId, currencyName string, amount float64) error {
+	tx, err := cl.db.Beginx()
 	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var balances []*proto.Balance
-	for rows.Next() {
-		balance := &proto.Balance{}
-		err := rows.Scan(&balance.Currency, &balance.Balance, &balance.LockedBalance, &balance.UpdatedDate)
-		if err != nil {
-			return nil, err
-		}
-		balances = append(balances, balance)
+		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 
-	if err = rows.Err(); err != nil {
-		return nil, err
-	}
-
-	return balances, nil
-}
-func (cl *PgClient) Query(query string, dest interface{}, args ...interface{}) error {
-	rows, err := cl.db.Query(query, args...)
+	result, err := tx.Exec(EmitBalanceByUserIdSqlQuery, currencyName, amount, 0, time.Now().Unix(), userId)
 	if err != nil {
-		return err
+		tx.Rollback()
+		return fmt.Errorf("failed to execute balance update: %w", err)
 	}
-	defer rows.Close()
 
-	columns, err := rows.Columns()
+	_, err = result.RowsAffected()
 	if err != nil {
-		return err
+		tx.Rollback()
+		return fmt.Errorf("cannot get rows affected: %w", err)
 	}
 
-	destValue := reflect.ValueOf(dest)
-	destType := destValue.Type()
-	if destType.Kind() != reflect.Ptr || destType.Elem().Kind() != reflect.Struct {
-		return fmt.Errorf("destination must be a pointer to a struct")
-	}
-
-	for rows.Next() {
-		values := make([]interface{}, len(columns))
-		for i := range columns {
-			values[i] = new(interface{})
-		}
-
-		err := rows.Scan(values...)
-		if err != nil {
-			return err
-		}
-
-		// Создаем новый экземпляр структуры
-		newStruct := reflect.New(destType.Elem())
-
-		// Заполняем поля структуры значениями из запроса
-		for i, column := range columns {
-			field := newStruct.Elem().FieldByName(column)
-			if !field.IsValid() {
-				return fmt.Errorf("struct field %s not found", column)
-			}
-			val := *values[i].(*interface{})
-			if val != nil {
-				field.Set(reflect.ValueOf(val).Elem())
-			}
-		}
-
-		// Добавляем структуру к результатам
-		destValue.Elem().Set(reflect.Append(destValue.Elem(), newStruct.Elem()))
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
 	return nil
 }
 
-/*
-func (cl *PgClient) GetBalanceByUserId(req *proto.GetBalanceByUserIdRequest) ([]*proto.Balance, error) {
-	//cl.db.Select(, buildQueryByProto(req)
-	return nil, nil
-}*/
-/*
-func BuildQueryByProto(req *proto.GetBalanceByUserIdRequest) string {
-	return fmt.Sprintf(config.GetBalanceByUserIdSqlQuery, req.GetUserId())
-}*/
+func (cl *Client) GetUserBalance(userId, currencyName string) (*proto.Balance, error) {
+	balance := make([]proto.Balance, 0, 1)
+
+	err := cl.db.Select(&balance, GetBalanceByUserIdCurrencySqlQuery, userId, currencyName)
+	if err != nil {
+		return nil, fmt.Errorf("failed get user balance: %w", err)
+	}
+
+	return &balance[0], nil
+}
+
+func (cl *Client) GetUserBalances(userId string) ([]*proto.Balance, error) {
+	balances := make([]*proto.Balance, 0, 1)
+
+	err := cl.db.Select(&balances, GetBalanceByUserIdSqlQuery, userId)
+	if err != nil {
+		return nil, fmt.Errorf("failed get user balances: %w", err)
+	}
+
+	return balances, nil
+}
+
+func (cl *Client) UpdateBalancesTx(users ...*handlers.User) (err error) {
+	ctx := context.Background()
+
+	tx, err := cl.db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if p := recover(); p != nil {
+			_ = tx.Rollback()
+			panic(p)
+		} else if err != nil {
+			_ = tx.Rollback()
+		} else {
+			err = tx.Commit()
+		}
+	}()
+
+	now := time.Now().Unix()
+	for _, u := range users {
+		if u.CurrencyName != "" && u.Balance != 0 {
+			_, err = tx.ExecContext(ctx, UpdateBalanceByUserIdSqlQuery, u.CurrencyName, u.Balance, 0, now, u.UserId)
+			if err != nil {
+				return fmt.Errorf("balance update failed: %w", err)
+			}
+		}
+
+		if u.LockedCurrencyName != "" && u.LockedBalance != 0 {
+			_, err = tx.ExecContext(ctx, UpdateBalanceByUserIdSqlQuery, u.LockedCurrencyName, 0, u.LockedBalance, now, u.UserId)
+			if err != nil {
+				return fmt.Errorf("locked balance update failed: %w", err)
+			}
+		}
+	}
+
+	return nil
+}
+
+func (cl *Client) Exec(query string, args ...interface{}) interface{} {
+	result, err := cl.db.Exec(query, args...)
+	util.IsError(err, "Failed insert")
+	return result
+}

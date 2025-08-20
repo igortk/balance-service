@@ -3,67 +3,102 @@ package handlers
 import (
 	"balance-service/dto/proto"
 	"balance-service/services/pg"
-	"balance-service/util"
-	gitProto "github.com/golang/protobuf/proto"
 	log "github.com/sirupsen/logrus"
 	"strings"
-	"time"
 )
 
 type UpdateOrderEventHandler struct {
-	pgCl *pg.PgClient
+	pgCl *pg.Client
 }
 
-func NewUpdateOrderEventHandler(pgCl *pg.PgClient) UpdateOrderEventHandler {
-	return UpdateOrderEventHandler{
+func NewUpdateOrderEventHandler(pgCl *pg.Client) *UpdateOrderEventHandler {
+	return &UpdateOrderEventHandler{
 		pgCl: pgCl,
 	}
 }
 
-func (h UpdateOrderEventHandler) HandleMessage(body []byte) {
-	event := &proto.OrderUpdateEvent{}
-	err := gitProto.Unmarshal(body, event)
-	util.IsError(err, "Failed to unmarshal message")
-	log.Printf("received event: %s", event)
-
-	if event.Error != nil {
+func (h *UpdateOrderEventHandler) HandleMessage(body []byte) {
+	event, err := unmarshalRequest[*proto.OrderUpdateEvent](body)
+	if err != nil {
+		log.Errorf("Failed deserialize OrderUpdateEvent: %v", err)
 		return
 	}
+	h.processing(event)
+}
 
-	currency := ""
+type User struct {
+	UserId             string
+	Balance            float64
+	LockedBalance      float64
+	CurrencyName       string
+	LockedCurrencyName string
+}
 
-	switch event.Order.Direction {
-	case proto.Direction_ORDER_DIRECTION_BUY:
-		currency = strings.Split(event.Order.Pair, "/")[1]
-		break
-	case proto.Direction_ORDER_DIRECTION_SELL:
-		currency = strings.Split(event.Order.Pair, "/")[0]
-		break
-	default:
-		log.Errorf("unsupported direction value")
-		return
+func (h *UpdateOrderEventHandler) processing(event *proto.OrderUpdateEvent) {
+	owner := &User{UserId: event.Order.UserId}
+	matchedUser := &User{UserId: event.MatchedUser.UserId}
+	base, quote, _ := strings.Cut(event.Order.Pair, "/")
+
+	if event.Order.Status == proto.OrderStatus_ORDER_STATUS_NEW {
+		switch event.Order.Direction {
+		case proto.Direction_ORDER_DIRECTION_BUY:
+			owner.LockedCurrencyName = quote
+			owner.LockedBalance = event.Order.InitPrice * event.Order.InitVolume
+
+			owner.CurrencyName = base
+			owner.Balance = event.Order.InitVolume
+			break
+		case proto.Direction_ORDER_DIRECTION_SELL:
+			owner.LockedCurrencyName = base
+			owner.LockedBalance = event.Order.InitVolume
+
+			owner.CurrencyName = quote
+			owner.Balance = event.Order.InitPrice * event.Order.InitVolume
+			break
+		default:
+			log.Errorf("unsupported direction value")
+			return
+		}
+
+		if err := h.pgCl.UpdateBalancesTx(owner); err != nil {
+			log.Errorf("failed to update balances: %v", err)
+		}
 	}
 
-	if event.Order.Status == proto.OrderStatus_ORDER_STATUS_REMOVED {
-		h.pgCl.Exec(
-			pg.UpdateBalanceByUserIdSqlQuery,
-			currency,
-			event.Order.InitPrice*(event.Order.InitVolume-event.Order.FillVolume),
-			(-1)*event.Order.InitPrice*(event.Order.InitVolume-event.Order.FillVolume),
-			time.Now().Unix(),
-			event.Order.UserId,
-		)
-		log.Info("successful update of user balance")
-		return
+	if event.Order.Status == proto.OrderStatus_ORDER_STATUS_MATCHED {
+		switch event.Order.Direction {
+		case proto.Direction_ORDER_DIRECTION_BUY:
+			// Buyer:
+			owner.LockedCurrencyName = quote
+			owner.LockedBalance = event.MatchedUser.Volume
+
+			owner.CurrencyName = base
+			owner.Balance = event.MatchedUser.Volume
+
+			// Seller:
+			matchedUser.LockedCurrencyName = base
+			matchedUser.LockedBalance = event.MatchedUser.Volume
+
+			matchedUser.CurrencyName = quote // got money
+			matchedUser.Balance = event.MatchedUser.Volume * event.MatchedUser.Price
+		case proto.Direction_ORDER_DIRECTION_SELL:
+			// Seller:
+			owner.LockedCurrencyName = base
+			owner.LockedBalance = event.MatchedUser.Volume
+
+			owner.CurrencyName = quote
+			owner.Balance = event.MatchedUser.Volume * event.MatchedUser.Price
+
+			// Buyer:
+			matchedUser.LockedCurrencyName = quote
+			matchedUser.LockedBalance = event.MatchedUser.Volume * event.MatchedUser.Price
+
+			matchedUser.CurrencyName = base
+			matchedUser.Balance = event.MatchedUser.Volume
+		}
 	}
 
-	h.pgCl.Exec(
-		pg.UpdateBalanceByUserIdSqlQuery,
-		currency,
-		(-1)*event.Order.InitPrice*event.Order.InitVolume,
-		event.Order.InitPrice*event.Order.InitVolume,
-		time.Now().Unix(),
-		event.Order.UserId,
-	)
-	log.Info("successful update of user balance")
+	if err := h.pgCl.UpdateBalancesTx(owner, matchedUser); err != nil {
+		log.Errorf("failed to update balances: %v", err)
+	}
 }

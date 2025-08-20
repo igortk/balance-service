@@ -30,7 +30,7 @@ type (
 		Port     int    `env:"PORT"  envDefault:"5432"`
 		Username string `env:"USERNAME" envDefault:"postgres"`
 		Password string `env:"PASSWORD" envDefault:"password"`
-		DbName   string `env:"DBNAME" envDefault:"BalanceService"`
+		DbName   string `env:"DBNAME" envDefault:"balance-service"`
 	}
 )
 
