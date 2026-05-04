@@ -1,0 +1,30 @@
+stages:
+  - review
+  # - build    ← твої існуючі stages якщо є
+  # - test
+  # - deploy
+ai-code-review:
+  stage: review
+  image: golang:1.24
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      when: manual
+      allow_failure: true
+  before_script:
+    - |
+      REVIEWER_PROJECT_ID=$(curl --silent \
+        --header "PRIVATE-TOKEN: $GITLAB_TOKEN" \
+        "https://gitlab.com/api/v4/projects/igortk76%2Fai-reviewer" \
+        | grep -o '"id":[0-9]*' | head -1 | cut -d: -f2)
+      
+      echo "Reviewer project ID: $REVIEWER_PROJECT_ID"
+      
+      curl --silent \
+           --location \
+           --header "PRIVATE-TOKEN: $GITLAB_TOKEN" \
+           --output reviewer \
+           "https://gitlab.com/api/v4/projects/$REVIEWER_PROJECT_ID/jobs/artifacts/main/raw/reviewer?job=build"
+    - chmod +x reviewer
+    - apt-get update -qq && apt-get install -y -qq git
+  script:
+    - ./reviewer
