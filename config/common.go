@@ -4,6 +4,7 @@ package config
 const (
 	RabbitEventsExchange  = "e.events.forward"
 	RabbitBalanceExchange = "e.balances.forward"
+	TestExchange = "e.balances.forward"
 )
 
 // RMQ rk
