@@ -20,7 +20,7 @@ type Server struct {
 	consumers map[string]*consumers.Consumer
 }
 
-func NewServer2(pg *pg.Client, s *senders.Sender, c *amqp.Connection) *Server {
+func NewServer(pg *pg.Client, s *senders.Sender, c *amqp.Connection) *Server {
 	return &Server{
 		pgClient:  pg,
 		sender:    s,
@@ -47,11 +47,8 @@ func (s *Server) Run(ctx context.Context, wg *sync.WaitGroup) {
 	s.runAllConsumers(ctx, wg)
 	log.Info("Server is running...")
 
-	select {
-	case <-ctx.Done():
-		log.Info("Stopped server")
-		return
-	}
+	<-ctx.Done()
+	log.Info("Stopped server")
 
 }
 

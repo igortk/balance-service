@@ -81,7 +81,7 @@ func (c *Consumer) ConsumeMessages(ctx context.Context, wg *sync.WaitGroup) {
 		log.Fatalf("Failed to register a consumers: %v", err)
 	}
 
-	stopChant := make(chan struct{})
+	stopChan := make(chan struct{})
 
 	go func() {
 		<-ctx.Done()
@@ -90,7 +90,7 @@ func (c *Consumer) ConsumeMessages(ctx context.Context, wg *sync.WaitGroup) {
 		_ = c.channel.Cancel("", false)
 
 		<-time.After(10 * time.Second)
-		stopChant <- struct{}{}
+		stopChan <- struct{}{}
 	}()
 
 	for {
@@ -102,7 +102,7 @@ func (c *Consumer) ConsumeMessages(ctx context.Context, wg *sync.WaitGroup) {
 			}
 			c.handler.HandleMessage(val.Body)
 
-		case <-stopChant:
+		case <-stopChan:
 			log.Println("Stopped consuming messages.")
 			return
 		}

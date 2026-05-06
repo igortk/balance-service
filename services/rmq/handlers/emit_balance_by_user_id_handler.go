@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"balance-service/config"
 	"balance-service/dto/proto"
 	"balance-service/services/pg"
 	"balance-service/services/rmq/senders"
@@ -8,7 +9,7 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-var minAmount = 0.1
+const minAmount = 0.1
 
 type EmitBalanceByUserIdHandler struct {
 	pgCl      *pg.Client
@@ -88,7 +89,7 @@ func (h *EmitBalanceByUserIdHandler) validation(req *proto.EmitBalanceByUserIdRe
 	}
 
 	if req.Amount < minAmount {
-		log.Errorf("Invalid user id: %v", req.UserId)
+		log.Errorf("Amount too small: %v", req.Amount)
 		return &proto.Error{
 			Code:    409,
 			Message: fmt.Sprintf("Amount less then %f", minAmount),
@@ -104,7 +105,7 @@ func (h *EmitBalanceByUserIdHandler) send(resp *proto.EmitBalanceByUserIdRespons
 		return fmt.Errorf("failed serialize response EmitBalanceByUserIdResponse: %v", err)
 	}
 
-	err = h.sResponse.SendMessage("e.balances.forward", "r.balance-service.EmitUserBalanceResponse", *respBody)
+	err = h.sResponse.SendMessage(config.RabbitBalanceExchange, config.EmitUserBalanceResponseRoutingKey, *respBody)
 	if err != nil {
 		return fmt.Errorf("failed send response EmitBalanceByUserIdResponse: %v", err)
 	}

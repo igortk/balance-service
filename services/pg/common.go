@@ -1,5 +1,13 @@
 package pg
 
+type User struct {
+	UserId             string
+	Balance            float64
+	LockedBalance      float64
+	CurrencyName       string
+	LockedCurrencyName string
+}
+
 // Queries
 
 const (

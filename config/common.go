@@ -4,7 +4,6 @@ package config
 const (
 	RabbitEventsExchange  = "e.events.forward"
 	RabbitBalanceExchange = "e.balances.forward"
-	TestExchange = "e.balances.forward"
 )
 
 // RMQ rk
@@ -13,6 +12,7 @@ const (
 	EmitBalanceByUserIdRequestRoutingKey = "r.balance-service.balances.#.EmitUserBalanceRequest"
 	UpdatedOrderEventRoutingKey          = "r.ops.balance-service.order.OrderUpdateEvent"
 	GetBalanceByUserIdResponseRoutingKey = "r.balance.GetBalanceByUserIdResponse"
+	EmitUserBalanceResponseRoutingKey    = "r.balance-service.EmitUserBalanceResponse"
 )
 
 // queue name

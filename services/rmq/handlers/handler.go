@@ -49,5 +49,5 @@ func marshalResponse(resp gitProto.Message) (*[]byte, error) {
 
 func isValidUUID(field string) bool {
 	_, err := uuid.Parse(field)
-	return err != nil
+	return err == nil
 }

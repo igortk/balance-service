@@ -3,7 +3,6 @@ package pg
 import (
 	"balance-service/config"
 	"balance-service/dto/proto"
-	"balance-service/services/rmq/handlers"
 	"balance-service/util"
 	"context"
 	"database/sql"
@@ -78,7 +77,7 @@ func (cl *Client) GetUserBalances(userId string) ([]*proto.Balance, error) {
 	return balances, nil
 }
 
-func (cl *Client) UpdateBalancesTx(users ...*handlers.User) (err error) {
+func (cl *Client) UpdateBalancesTx(users ...*User) (err error) {
 	ctx := context.Background()
 
 	tx, err := cl.db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})

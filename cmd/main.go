@@ -47,7 +47,7 @@ func main() {
 		log.Fatalf("Error create pg client: %v", err)
 	}
 
-	svr := services.NewServer2(pgClient, sender, conn)
+	svr := services.NewServer(pgClient, sender, conn)
 	wg := &sync.WaitGroup{}
 	svr.Run(ctx, wg)
 
