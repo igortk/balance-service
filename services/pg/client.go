@@ -36,7 +36,7 @@ func (cl *Client) EmitCurrency(userId, currencyName string, amount float64) erro
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 
-	result, err := tx.Exec(EmitBalanceByUserIdSqlQuery, currencyName, amount, 0, time.Now().Unix(), userId)
+	result, err := tx.Exec(EmitBalanceByUserIdSqlQuery, currencyName, amount, lockedAmount, time.Now().Unix(), userId)
 	if err != nil {
 		tx.Rollback()
 		return fmt.Errorf("failed to execute balance update: %w", err)
