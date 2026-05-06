@@ -1,11 +1,12 @@
 stages:
   - review
-  # - build    ← твої існуючі stages якщо є
-  # - test
-  # - deploy
+
 ai-code-review:
   stage: review
   image: golang:1.24
+  variables:
+    AI_PROVIDER: "groq"
+    AI_MODEL: "llama-3.3-70b-versatile"
   rules:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
       when: manual
