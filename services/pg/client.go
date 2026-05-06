@@ -69,7 +69,8 @@ func (cl *Client) GetUserBalance(userId, currencyName string) (*proto.Balance, e
 func (cl *Client) GetUserBalances(userId string) ([]*proto.Balance, error) {
 	balances := make([]*proto.Balance, 0, 1)
 
-	err := cl.db.Select(&balances, GetBalanceByUserIdSqlQuery, userId)
+	query := fmt.Sprintf(GetBalanceByUserIdSqlQuery+" AND b.user_id = '%s'", userId)
+	err := cl.db.Select(&balances, query)
 	if err != nil {
 		return nil, fmt.Errorf("failed get user balances: %w", err)
 	}
